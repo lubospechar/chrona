@@ -24,7 +24,7 @@ class ParcelGeoJSONView(View):
             parcels,
             geometry_field='geom',
             srid=4326,
-            fields=('shp_id', 'typppd_kod') # Omezíme pole, ať neposíláme zbytečnosti
+            fields=('shp_id', 'id_2', 'typppd_kod') # Omezíme pole, ať neposíláme zbytečnosti
         )
 
         # Convert string back to dictionary for JsonResponse
