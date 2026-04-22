@@ -24,7 +24,7 @@ class ParcelGeoJSONView(View):
             parcels,
             geometry_field='geom',
             srid=4326,
-            fields=('shp_id', 'id_2', 'typppd_kod') # Omezíme pole, ať neposíláme zbytečnosti
+            fields=('shp_id', 'id_2', 'typppd_kod')
         )
 
         # Convert string back to dictionary for JsonResponse
@@ -41,16 +41,13 @@ class ParcelNeighborsView(View):
 
     def get(self, request, pk, *args, **kwargs):
         try:
-            # 1. Najdeme aktuální parcelu podle Primary Key (ID)
+
             parcel = CadastralParcel.objects.get(pk=pk)
 
-            # 2. Najdeme sousedy. Použijeme intersects (protíná/dotýká se)
-            # a zároveň z výsledku vyloučíme samotnou aktuální parcelu
             neighbors = CadastralParcel.objects.filter(
                 geom__intersects=parcel.geom
             ).exclude(pk=parcel.pk).values_list('pk', flat=True)
 
-            # Vrátíme pole IDček ve formátu JSON
             return JsonResponse({'neighbor_ids': list(neighbors)})
 
         except CadastralParcel.DoesNotExist:
