@@ -1,5 +1,5 @@
 """
-WSGI config for chrona project.
+WSGI config for majix project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 
@@ -11,6 +11,6 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "chrona.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "majix.settings")
 
 application = get_wsgi_application()
