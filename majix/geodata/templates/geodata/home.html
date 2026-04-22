@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>majix demo</title>
@@ -11,7 +11,6 @@
             margin: 0;
             padding: 0;
         }
-
         #map {
             height: 100vh;
             width: 100vw;
@@ -27,11 +26,87 @@
 <script>
     var map = L.map('map').setView([49.8, 15.5], 7);
 
-
     L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
-        maxZoom: 19,
+        maxZoom: 20,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
+
+    var layerDictionary = {};
+    var currentHoveredId = null;
+
+    fetch('/api/parcels/')
+        .then(response => response.json())
+        .then(data => {
+
+            var parcelLayer = L.geoJSON(data, {
+                style: function (feature) {
+                    return {
+                        color: "#ff0000",
+                        weight: 1,
+                        fillColor: "#ff7800",
+                        fillOpacity: 0.1
+                    };
+                },
+
+                onEachFeature: function (feature, layer) {
+                    if (feature.id) {
+                        layerDictionary[feature.id] = layer;
+                    }
+
+                    if (feature.properties) {
+                        var popupContent = `
+                            <strong>Parcel ID:</strong> ${feature.properties.shp_id}<br>
+                            <strong>Type:</strong> ${feature.properties.typppd_kod}
+                        `;
+                        layer.bindPopup(popupContent);
+                    }
+
+                    layer.on({
+                        mouseover: function (e) {
+                            currentHoveredId = feature.id;
+                            var hoveredLayer = e.target;
+
+                            hoveredLayer.setStyle({
+                                color: '#0055ff',
+                                weight: 3,
+                                fillOpacity: 0.5
+                            });
+
+                            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                                hoveredLayer.bringToFront();
+                            }
+
+                            fetch(`/api/parcels/${feature.id}/neighbors/`)
+                                .then(res => res.json())
+                                .then(neighborData => {
+                                    if (currentHoveredId === feature.id && neighborData.neighbor_ids) {
+                                        neighborData.neighbor_ids.forEach(neighborId => {
+                                            var neighborLayer = layerDictionary[neighborId];
+                                            if (neighborLayer) {
+                                                neighborLayer.setStyle({
+                                                    color: '#00ff00',
+                                                    weight: 2,
+                                                    fillColor: '#00ff00',
+                                                    fillOpacity: 0.4
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                        },
+
+                        mouseout: function (e) {
+                            currentHoveredId = null;
+                            parcelLayer.resetStyle();
+                        }
+                    });
+                }
+            }).addTo(map);
+
+            map.fitBounds(parcelLayer.getBounds());
+        })
+        .catch(error => console.error('Error fetching parcels:', error));
+
 </script>
 </body>
 </html>
