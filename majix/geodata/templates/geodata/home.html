@@ -75,7 +75,7 @@
                         layerDictionary[feature.id] = layer;
                     }
 
-                    layer.bindPopup("<div style='padding: 10px;'>Načítám detailní data z RÚIAN...</div>");
+                    layer.bindPopup("<div style='padding: 10px;'>Načítám detailní data z RÚIAN a záplavových zón...</div>");
 
                     layer.on({
                         click: function (e) {
@@ -83,48 +83,66 @@
                             var ruianId = feature.properties.id_2;
 
                             var ruianApiUrl = `https://ags.cuzk.gov.cz/arcgis/rest/services/RUIAN/Prohlizeci_sluzba_nad_daty_RUIAN/MapServer/5/query?where=id=${ruianId}&outFields=*&f=pjson`;
+                            // Voláme náš nový lokální endpoint
+                            var floodZoneApiUrl = `/api/parcels/${feature.id}/flood_zone/`;
 
-                            fetch(ruianApiUrl)
-                                .then(res => res.json())
-                                .then(ruianData => {
+                            // Promise.all počká na dokončení obou fetch požadavků
+                            Promise.all([
+                                fetch(ruianApiUrl).then(res => res.json()),
+                                fetch(floodZoneApiUrl).then(res => res.json())
+                            ])
+                            .then(([ruianData, floodData]) => {
 
-                                    console.log("RUIAN Data pro parcelu " + ruianId + ":", ruianData);
+                                console.log("RUIAN Data pro parcelu " + ruianId + ":", ruianData);
+                                console.log("Záplavová data pro parcelu " + ruianId + ":", floodData);
 
-                                    if (ruianData.features && ruianData.features.length > 0) {
+                                if (ruianData.features && ruianData.features.length > 0) {
 
-                                        var attrs = ruianData.features[0].attributes;
+                                    var attrs = ruianData.features[0].attributes;
 
-                                        var cisloParcely = attrs.cisloparcely || '';
-                                        var druhCislovani = attrs.druhcislovanikod === 1 ? 'Stavební' : 'Pozemková';
+                                    var cisloParcely = attrs.cisloparcely || '';
+                                    var druhCislovani = attrs.druhcislovanikod === 1 ? 'Stavební' : 'Pozemková';
 
-                                        var popupContent = `
-                                            <div class="popup-title">Parcela č. ${cisloParcely}</div>
-                                            <table class="ruian-table">
-                                                <tr><th>RÚIAN ID:</th><td>${ruianId}</td></tr>
-                                                <tr><th>Číslo parcely:</th><td>${cisloParcely}</td></tr>
-                                                <tr><th>Druh číslování:</th><td>${druhCislovani}</td></tr>
-                                                <tr><th>Kód kat. území:</th><td>${attrs.katastralniuzemi || '-'}</td></tr>
-                                                <tr><th>Výměra:</th><td><b>${attrs.vymeraparcely || 0} m²</b></td></tr>
-                                                <tr><th>Platí do:</th><td>${attrs.platido || 'Současnost'}</td></tr>
-                                            </table>
-                                            <br>
-                                            <a href="https://vdp.cuzk.cz/vdp/ruian/parcely/${ruianId}" target="_blank" style="display:block; text-align:center; background:#ff7800; color:white; padding:5px; text-decoration:none; border-radius:3px;">
-                                                Zobrazit detail v Katastru (VDP)
-                                            </a>
-                                        `;
-                                        layer.setPopupContent(popupContent);
+                                    // Vytvoříme text pro záplavovou zónu (červeně ANO / zeleně NE)
+                                    var floodInfo = "";
+                                    if (floodData.in_flood_zone) {
+                                        var toky = floodData.flood_zones && floodData.flood_zones.length > 0
+                                                   ? ` (${floodData.flood_zones.join(', ')})`
+                                                   : "";
+                                        floodInfo = `<span style="color: red; font-weight: bold;">ANO${toky}</span>`;
                                     } else {
-                                        layer.setPopupContent(`
-                                            <b>Data z RÚIAN nenalezena</b><br>
-                                            <small>API nevrátilo data pro RÚIAN ID ${ruianId}</small><br><br>
-                                            <a href="https://vdp.cuzk.cz/vdp/ruian/parcely/${ruianId}" target="_blank">Zkusit otevřít ve VDP</a>
-                                        `);
+                                        floodInfo = `<span style="color: green; font-weight: bold;">NE</span>`;
                                     }
-                                })
-                                .catch(err => {
-                                    console.error("Chyba API:", err);
-                                    layer.setPopupContent("Chyba při stahování dat z ČÚZK API.");
-                                });
+
+                                    var popupContent = `
+                                        <div class="popup-title">Parcela č. ${cisloParcely}</div>
+                                        <table class="ruian-table">
+                                            <tr><th>RÚIAN ID:</th><td>${ruianId}</td></tr>
+                                            <tr><th>Číslo parcely:</th><td>${cisloParcely}</td></tr>
+                                            <tr><th>Druh číslování:</th><td>${druhCislovani}</td></tr>
+                                            <tr><th>Kód kat. území:</th><td>${attrs.katastralniuzemi || '-'}</td></tr>
+                                            <tr><th>Výměra:</th><td><b>${attrs.vymeraparcely || 0} m²</b></td></tr>
+                                            <tr><th>Záplavová zóna:</th><td>${floodInfo}</td></tr>
+                                            <tr><th>Platí do:</th><td>${attrs.platido || 'Současnost'}</td></tr>
+                                        </table>
+                                        <br>
+                                        <a href="https://vdp.cuzk.cz/vdp/ruian/parcely/${ruianId}" target="_blank" style="display:block; text-align:center; background:#ff7800; color:white; padding:5px; text-decoration:none; border-radius:3px;">
+                                            Zobrazit detail v Katastru (VDP)
+                                        </a>
+                                    `;
+                                    layer.setPopupContent(popupContent);
+                                } else {
+                                    layer.setPopupContent(`
+                                        <b>Data z RÚIAN nenalezena</b><br>
+                                        <small>API nevrátilo data pro RÚIAN ID ${ruianId}</small><br><br>
+                                        <a href="https://vdp.cuzk.cz/vdp/ruian/parcely/${ruianId}" target="_blank">Zkusit otevřít ve VDP</a>
+                                    `);
+                                }
+                            })
+                            .catch(err => {
+                                console.error("Chyba API:", err);
+                                layer.setPopupContent("Chyba při stahování dat z API.");
+                            });
                         },
 
                         mouseover: function (e) {
