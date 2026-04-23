@@ -52,3 +52,31 @@ class ParcelNeighborsView(View):
 
         except CadastralParcel.DoesNotExist:
             return JsonResponse({'neighbor_ids': []}, status=404)
+
+
+class ParcelFloodZoneView(View):
+    """
+    Vrátí informaci, zda je parcela v záplavové zóně.
+    """
+
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            parcel = CadastralParcel.objects.get(pk=pk)
+            in_flood_zone = parcel.is_in_flood_zone()
+
+            flood_zones = []
+            if in_flood_zone:
+                # Získáme unikátní názvy toků
+                flood_zones = list(set(
+                    parcel.get_flood_zones()
+                    .exclude(naz_tok__isnull=True)
+                    .values_list('naz_tok', flat=True)
+                ))
+
+            return JsonResponse({
+                'in_flood_zone': in_flood_zone,
+                'flood_zones': flood_zones
+            })
+
+        except CadastralParcel.DoesNotExist:
+            return JsonResponse({'error': 'Parcel not found'}, status=404)
